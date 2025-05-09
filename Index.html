@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task-o-meter</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1f3c88, #2c3e50, #34495e);
+      color: #ecf0f1;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 20px 0;
+      font-size: 2rem;
+    }
+
+    .container {
+      width: 95%;
+      max-width: 1200px;
+      margin: auto;
+      padding: 10px;
+    }
+
+    .section {
+      background-color: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+
+    button {
+      padding: 10px 15px;
+      font-size: 1rem;
+      background-color: #2980b9;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      margin: 5px;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #1abc9c;
+    }
+
+    #timer {
+      font-size: 2.5rem;
+      margin: 15px 0;
+    }
+
+    #cycle {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    .task-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .task-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: rgba(236, 240, 241, 0.2);
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: grab;
+      font-size: 0.9rem;
+    }
+
+    .task-item span {
+      flex-grow: 1;
+      text-align: left;
+      margin-left: 10px;
+      word-break: break-word;
+    }
+
+    .task-item button {
+      background-color: #c0392b;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 12px;
+    }
+
+    .input-field {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .input-field input {
+      padding: 10px;
+      border-radius: 20px;
+      border: 2px solid #2980b9;
+      flex: 1 1 200px;
+    }
+
+    .stats p {
+      font-size: 1rem;
+    }
+
+    .motivational-message {
+      font-size: 1.1rem;
+      color: #2ecc71;
+      margin-top: 10px;
+    }
+
+    canvas {
+      margin-top: 10px;
+      width: 100% !important;
+      height: 200px !important;
+    }
+
+    @media (max-width: 600px) {
+      #timer {
+        font-size: 2rem;
+      }
+
+      button {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+      }
+
+      .task-item {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Task-o-meter</h1>
+
+    <!-- Timer Section -->
+    <div class="section">
+      <p id="timer">25:00</p>
+      <button onclick="startTimer()">Iniciar</button>
+      <button onclick="pauseTimer()">Pausar</button>
+      <button onclick="resetTimer()">Reiniciar</button>
+      <p id="cycle">Ciclo: 1 / 2</p>
+    </div>
+
+    <!-- Task Checklist Section -->
+    <div class="section">
+      <h2>✅ Checklist de Tareas</h2>
+      <div class="input-field">
+        <input type="text" id="taskInput" placeholder="Nueva tarea...">
+        <button onclick="addTask()">Agregar tarea</button>
+      </div>
+      <ul id="taskList" class="task-list"></ul>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="section stats">
+      <h2>📊 Estadísticas</h2>
+      <p>Mini-ciclos hoy: <span id="miniCycles">0</span></p>
+      <p>A-ciclos hoy: <span id="aCycles">0</span></p>
+      <canvas id="progressChart"></canvas>
+      <p id="motivationalMessage" class="motivational-message"></p>
+    </div>
+  </div>
+
+  <script>
+    let timer;
+    let cycleCount = 1;
+    let time = 1500;
+    let miniCycleCount = 0;
+    let aCycleCount = 0;
+    let dailyStats = JSON.parse(localStorage.getItem('dailyStats')) || {};
+    let taskList = JSON.parse(localStorage.getItem('taskList')) || [];
+    let chart;
+
+    function startTimer() {
+      if (!timer) {
+        timer = setInterval(() => {
+          time--;
+          updateTimerDisplay();
+          if (time <= 0) nextCycle();
+        }, 1000);
+      }
+    }
+
+    function pauseTimer() {
+      clearInterval(timer);
+      timer = null;
+    }
+
+    function resetTimer() {
+      clearInterval(timer);
+      timer = null;
+      time = 1500;
+      cycleCount = 1;
+      updateTimerDisplay();
+      document.getElementById('cycle').textContent = 'Ciclo: 1 / 2';
+    }
+
+    function updateTimerDisplay() {
+      const minutes = Math.floor(time / 60);
+      const seconds = time % 60;
+      document.getElementById('timer').textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    }
+
+    function nextCycle() {
+      clearInterval(timer);
+      timer = null;
+      if (cycleCount < 2) {
+        time = 300;
+        cycleCount++;
+        miniCycleCount++;
+      } else {
+        time = 900;
+        cycleCount = 1;
+        aCycleCount++;
+        miniCycleCount++;
+      }
+      document.getElementById('cycle').textContent = `Ciclo: ${cycleCount} / 2`;
+      updateStats();
+      saveStats();
+      updateTimerDisplay();
+      playSound();
+      showMotivation();
+    }
+
+    function playSound() {
+      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+      audio.play().catch(() => {});
+    }
+
+    function showMotivation() {
+      const msg = document.getElementById('motivationalMessage');
+      msg.textContent = '¡Bien hecho! 🏆 Sigue así 🚀';
+      setTimeout(() => { msg.textContent = ''; }, 4000);
+    }
+
+    function addTask() {
+      const input = document.getElementById('taskInput');
+      const task = input.value.trim();
+      if (task) {
+        taskList.push(task);
+        saveTasks();
+        input.value = '';
+        renderTaskList();
+      }
+    }
+
+    function removeTask(index) {
+      taskList.splice(index, 1);
+      saveTasks();
+      renderTaskList();
+    }
+
+    function saveTasks() {
+      localStorage.setItem('taskList', JSON.stringify(taskList));
+    }
+
+    function renderTaskList() {
+      const list = document.getElementById('taskList');
+      list.innerHTML = '';
+      taskList.forEach((task, index) => {
+        const li = document.createElement('li');
+        li.className = 'task-item';
+        li.setAttribute('data-id', index);
+        li.innerHTML = `<span>${task}</span><button onclick="removeTask(${index})">Eliminar</button>`;
+        list.appendChild(li);
+      });
+    }
+
+    function saveStats() {
+      const today = new Date().toDateString();
+      dailyStats[today] = { miniCycles: miniCycleCount, aCycles: aCycleCount };
+      localStorage.setItem('dailyStats', JSON.stringify(dailyStats));
+      loadStats();
+    }
+
+    function loadStats() {
+      const today = new Date().toDateString();
+      const stats = dailyStats[today] || { miniCycles: 0, aCycles: 0 };
+      miniCycleCount = stats.miniCycles;
+      aCycleCount = stats.aCycles;
+      updateStats();
+      generateChart();
+    }
+
+    function updateStats() {
+      document.getElementById('miniCycles').textContent = miniCycleCount;
+      document.getElementById('aCycles').textContent = aCycleCount;
+    }
+
+    function generateChart() {
+      const labels = Object.keys(dailyStats);
+      const miniCyclesData = labels.map(date => dailyStats[date].miniCycles);
+      const aCyclesData = labels.map(date => dailyStats[date].aCycles);
+
+      const ctx = document.getElementById('progressChart').getContext('2d');
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = miniCyclesData;
+        chart.data.datasets[1].data = aCyclesData;
+        chart.update();
+      } else {
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Mini-ciclos', data: miniCyclesData, borderColor: '#3498db', fill: false },
+              { label: 'A-ciclos', data: aCyclesData, borderColor: '#2ecc71', fill: false }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { font: { size: 12 }, color: '#ecf0f1' } }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { color: '#ecf0f1' } },
+              x: { ticks: { color: '#ecf0f1' } }
+            }
+          }
+        });
+      }
+    }
+
+    renderTaskList();
+    loadStats();
+
+    new Sortable(document.getElementById('taskList'), {
+      animation: 150,
+      onEnd: function (evt) {
+        const movedItem = taskList.splice(evt.oldIndex, 1)[0];
+        taskList.splice(evt.newIndex, 0, movedItem);
+        saveTasks();
+        renderTaskList();
+      }
+    });
+  </script>
+
+</body>
+</html>
